@@ -2,69 +2,92 @@ import numpy as np
 from random import shuffle
 from past.builtins import xrange
 
-class Softmax:
-    def __init__(self, num_features, num_classes):
-        self.C = num_classes
-        self.D = num_features
-        # results of forward pass
-        self.scores = np.zeros((1,num_classes))
-        self.shift = 0
-        self.stable = np.zeros((1,num_classes))
-        self.denominator = 0
-        self.nominator = 0
-        self.result = 0
-        # Pair (x,class_x)
-        self.x = np.zeros((1, num_features))
-        self.truth = 0
-        # Debug mode
-        self.debug_on = False
 
-    def forward(self, x, class_x, W):
-        ''' 
-        Calculates the softmax expression for a given sample (x,class_x) 
-        and weights W and additionally returns the back propagated weight
-        Inputs:
-        - W: A numpy array of shape (D, C) containing weights.
-        - x: A numpy array of shape (1, D)
-        - class_x: label of x (scalar)
+class SoftmaxFun:
+    def __init__(self, X, y, W, debug_on=False):
         '''
-        self.x = x
-        self.truth = class_x
-        self.log("Number of features:",self.D)
-        self.log("Number of classes:",self.C)
+        Initialize dimensions and placeholders for backprop
+        Inputs:
+        - X: NxD matrix with N samples and D features
+        - y: Nx1 vector with true categories of each sample in X, encoded with {0,1...}
+        - W: Weight matrix of dimension DxC
+        '''
+        self.C = np.size(W, axis=1)  # number of classes
+        self.D = np.size(W, axis=0)
+        self.N = np.size(X, axis=0)
 
-        self.scores = np.dot(x,W) #1xC
-        self.shift = (-1)*np.max(self.scores)
-        self.stable = self.scores + self.shift
-        self.denominator = np.sum(np.exp(self.stable))
+        # results of forward pass
+        self.scores = np.zeros((self.N, self.C))
+        self.shift = np.zeros((self.N, 1))
+        self.stable = np.zeros((self.N, self.C))
+        self.stable_true = np.zeros((self.N, 1))
+        self.denominator = np.zeros((self.N, 1))
+        self.nominator = np.zeros((self.N, 1))
+        self.result = np.zeros((self.N, 1))
 
-        true_score = self.scores[:,class_x]
-        stable_true = self.stable[:,class_x]
-        self.nominator = np.exp(stable_true)
+        # Pair (X,y)
+        self.X = X
+        self.y = y
+        self.W = W
+
+        # Debug mode
+        self.debug_on = debug_on
+
+    def forward(self):
+        '''
+        Calculates the softmax expression for each sample in (X,y) and weight matrix W
+        Inputs:
+        - X: NxD matrix with N samples and D features
+        - y: Nx1 vector with true categories of each sample in X, encoded with {0,1...}
+        - W: Weight matrix of dimension DxC
+        Returns:
+        - Softmax: Nx1 vector with evaluated softmax results per sample
+        '''
+        self.scores = self.X.dot(self.W)  # NxC
+        self.shift = (-1)*np.max(self.scores, axis=1, keepdims=True)  # Nx1
+        self.stable = self.scores + self.shift  # NxC
+        self.denominator = np.sum(
+            np.exp(self.stable), axis=1, keepdims=True)  # Nx1
+
+        # pick the score with col index corresponding y of the sample
+        self.stable_true = np.reshape(
+            self.stable[list(range(self.N)), self.y.T], (self.N, 1))  # Nx1
+        self.nominator = np.exp(self.stable_true)
 
         self.result = self.nominator / self.denominator
+
         return self.result
 
     def backward(self, dProp):
-        ''' calculate local gradients '''
+        '''
+        Calculate local gradients and chain local gradient to incoming gradient
+        Input:
+        - dProp: Nx1 vector with incoming gradient per sample
+        Returns:
+        - dW: DxC matrix with backpropagated gradients w.r.t. weights
+        '''
         # gradient flowing through denominator
-        ddenominator = dProp * self.nominator *(-1/self.denominator**2)
+        ddenominator = dProp * self.nominator * (-1/self.denominator**2)  # Nx1
         self.log("Gradient through denominator gate", ddenominator)
 
         # gradient flowing through
-        dnominator = dProp * (1/self.denominator)
+        dnominator = dProp * (1/self.denominator)  # Nx1
         self.log("Gradient through nominator gate", dnominator)
 
         # gradient flowing through stable (now vector)
         # a) flow from denominator
-        dstable = ddenominator * np.exp(self.stable)
+        dstable = ddenominator * np.exp(self.stable)  # NxC
         # b) flow from nominator
-        dstable[:,self.truth] += dnominator * np.exp(self.stable[:,self.truth])
+        row_indices = list(range(self.N))
+        col_indices = [i for i in self.y[:, 0].tolist()]
+        add = dnominator * np.exp(self.stable_true)
+        dstable[row_indices, col_indices] += add.T[0, :]
         self.log("Gradient through stable gate \n", dstable)
 
         # gradient flowing through shift (routed to 1 component)
-        dshift = np.zeros((1,self.C))
-        dshift[:,np.argmax(self.scores)] = (-1)*np.sum(dstable)
+        dshift = np.zeros((self.N, self.C))  # NxC
+        col_indices = [i for i in np.argmax(self.scores, axis=1).tolist()]
+        dshift[row_indices, col_indices] = (-1)*np.sum(dstable, axis=1)
         self.log("Gradient through shift gate \n", dshift)
 
         # gradient flowing through scores
@@ -74,17 +97,18 @@ class Softmax:
         dscores += dstable
         self.log("Gradient through scores gate \n", dscores)
 
-        # element-wise multiplication
-        # DxC 1xC DxC 
-        dW = np.tile(self.x.T,(1,self.C))*dscores
+        dW = self.X.T.dot(dscores)  # DxN NxC
         return dW
+
     def set_debug_mode(self, debug_on=True):
         ''' Set debug mode to print debug messages '''
         self.debug_on = debug_on
+
     def log(self, *arg):
         ''' Print text in case debug mode is activated '''
         if self.debug_on:
             print(*arg)
+
 
 def softmax_loss_naive(W, X, y, reg, debug_on=False):
     """
@@ -114,24 +138,17 @@ def softmax_loss_naive(W, X, y, reg, debug_on=False):
     # here, it is easy to run into numeric instability. Don't forget the        #
     # regularization!                                                           #
     #############################################################################
-    N = np.size(X, axis=0)
-    D = np.size(X, axis=1)
-    C = np.size(W, axis=1)
-
+    N,D = X.shape
     dcross_entropy = np.zeros_like(W)
     cross_entropy = 0
     for i in list(range(N)):
-        softmax = Softmax(D,C)
-        softmax.set_debug_mode(debug_on)
-        softmax_result = softmax.forward(x=X[i,:][np.newaxis,:],class_x=y[i],W=W)
+        softmax = SoftmaxFun(X=X[i, :].reshape((1,D)), y=y[i].reshape((1, 1)), W=W, debug_on=debug_on)
+        softmax_result = softmax.forward()
         cross_entropy -= 1/N * np.log(softmax_result)
-        dcross_entropy += softmax.backward(dProp=1/N *(-1)*1/(softmax_result))
-        if debug_on:
-            print("Cross-Entropy derivative:\n", dcross_entropy)
-    penalty = reg * np.sum(np.sum(np.square(W)))
+        dcross_entropy += softmax.backward(dProp=1/N * (-1)*1/(softmax_result))
+    penalty = reg * np.sum(W**2)
     dpenalty = reg * 2 * W
-    if debug_on:
-        print("Penalty derivative:\n", dpenalty)
+
     loss = cross_entropy + penalty
     dW = dcross_entropy + dpenalty
     #############################################################################
@@ -141,7 +158,7 @@ def softmax_loss_naive(W, X, y, reg, debug_on=False):
     return loss, dW
 
 
-def softmax_loss_vectorized(W, X, y, reg):
+def softmax_loss_vectorized(W, X, y, reg, debug_on=False):
     """
     Softmax loss function, vectorized version.
 
@@ -150,14 +167,23 @@ def softmax_loss_vectorized(W, X, y, reg):
     # Initialize the loss and gradient to zero.
     loss = 0.0
     dW = np.zeros_like(W)
-
     #############################################################################
     # TODO: Compute the softmax loss and its gradient using no explicit loops.  #
     # Store the loss in loss and the gradient in dW. If you are not careful     #
     # here, it is easy to run into numeric instability. Don't forget the        #
     # regularization!                                                           #
     #############################################################################
-    pass
+    N = X.shape[0]
+    softmax = SoftmaxFun(X=X, y=y.reshape((N,1)), W=W, debug_on=debug_on)
+    softmax_eval = softmax.forward()  # Nx1
+    cross_entropy = np.mean(-np.log(softmax_eval), axis=0)
+    penalty = reg * np.sum(np.square(W))
+    loss = cross_entropy + penalty
+    dcross_entropy = (-1)*(1/N)*(1/softmax_eval)  # Nx1
+    dsoftmax = softmax.backward(dcross_entropy)  # DxC
+    dpenalty = reg * 2 * W  # DxC
+
+    dW = dsoftmax + dpenalty
     #############################################################################
     #                          END OF YOUR CODE                                 #
     #############################################################################

@@ -26,20 +26,26 @@ def svm_loss_naive(W, X, y, reg):
   num_classes = W.shape[1]
   num_train = X.shape[0]
   loss = 0.0
+  # gradient flowing from margins max(0,...) to scores
+  dmargin_scores = np.zeros((num_train, num_classes))
+  scores = np.zeros((num_train, num_classes))
+  margin_all = np.zeros((num_train, num_classes))
   for i in xrange(num_train):
-    scores = X[i].dot(W)
-    correct_class_score = scores[y[i]]
+    scores[i] = X[i].dot(W)
+    correct_class_score = scores[i,y[i]]
     for j in xrange(num_classes):
+      margin = scores[i,j] - correct_class_score + 1 # note delta = 1
       if j == y[i]:
         continue
-      margin = scores[j] - correct_class_score + 1 # note delta = 1
       if margin > 0:
+        dmargin_scores[i,j] = 1
+        dmargin_scores[i,y[i]] -= 1
+        margin_all[i,j] = margin
         loss += margin
 
   # Right now the loss is a sum over all training examples, but we want it
   # to be an average instead so we divide by num_train.
   loss /= num_train
-
   # Add regularization to the loss.
   loss += reg * np.sum(W * W)
 
@@ -51,8 +57,9 @@ def svm_loss_naive(W, X, y, reg):
   # loss is being computed. As a result you may need to modify some of the    #
   # code above to compute the gradient.                                       #
   #############################################################################
-
-
+  #DxN, NxC
+  dW = X.T.dot(dmargin_scores)/num_train
+  dW += reg*2*W
   return loss, dW
 
 
@@ -70,7 +77,19 @@ def svm_loss_vectorized(W, X, y, reg):
   # Implement a vectorized version of the structured SVM loss, storing the    #
   # result in loss.                                                           #
   #############################################################################
-  pass
+  N,D = X.shape
+  C = W.shape[1]
+
+  scores = X.dot(W)
+  row_idx = np.arange(0,N,1)
+  col_idx = y.reshape((1,N))
+  true_scores = scores[row_idx, col_idx].T
+  delta = 1
+  margin = np.maximum(0,scores-true_scores+delta)
+  #no margin if weight belongs to true class
+  margin[row_idx, col_idx]=0 
+  penalty = reg * np.sum(W*W)
+  loss = np.mean(np.sum(margin, axis=1)) + penalty
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
@@ -85,7 +104,12 @@ def svm_loss_vectorized(W, X, y, reg):
   # to reuse some of the intermediate values that you used to compute the     #
   # loss.                                                                     #
   #############################################################################
-  pass
+  dmargin_score = np.zeros((N,C))
+  dmargin_score[margin>0] = 1
+  # in every margin row, check how many are positive
+  dmargin_score[row_idx, col_idx] = -np.sum(margin>0,axis=1)
+  dW = 1/N * X.T.dot(dmargin_score) 
+  dW += 2*reg*W
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################

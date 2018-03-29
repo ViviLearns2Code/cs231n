@@ -34,7 +34,7 @@ class LinearClassifier(object):
     num_classes = np.max(y) + 1 # assume y takes values 0...K-1 where K is number of classes
     if self.W is None:
       # lazily initialize W
-      self.W = 0.005 * np.random.randn(dim, num_classes)
+      self.W = 0.001 * np.random.randn(dim, num_classes)
 
     # Run stochastic gradient descent to optimize W
     loss_history = []
@@ -135,10 +135,8 @@ class Softmax(LinearClassifier):
     return softmax_loss_vectorized(self.W, X_batch, y_batch, reg)
     
   def predict_proba(self, X):
-    N = X.shape[0]
-    shift = np.max(X.dot(self.W),axis=1).reshape((N,1))
-    score = X.dot(self.W) - shift
-    return np.exp(X.dot(self.W))/np.sum(np.exp(score), axis=0)
+    softmax = SoftmaxFun()
+    return softmax.forward(X=X,W=self.W)
     
   def predict(self, X):
     mat_proba = self.predict_proba(X=X)

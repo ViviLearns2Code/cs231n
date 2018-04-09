@@ -4,3 +4,6 @@ I am currently doing the Stanford CS231n course online and this repository conta
 
 ## Assignment 1
 Content: k-Nearest Neighbours, SVM, Softmax, Simple Neural Network, Image Classification based on features
+
+## Assignment 2
+Content: Fully connected network, batch normalization, dropout, convolutional neural networks, pytorch

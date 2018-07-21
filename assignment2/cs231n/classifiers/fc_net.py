@@ -145,7 +145,7 @@ class FullyConnectedNet(object):
 
     def __init__(self, hidden_dims, input_dim=3*32*32, num_classes=10,
                  dropout=0, use_batchnorm=False, reg=0.0,
-                 weight_scale=1e-2, dtype=np.float32, seed=None):
+                 weight_scale=1e-2, dtype=np.float32, seed=None,bn_before_relu=True):
         """
         Initialize a new FullyConnectedNet.
 
@@ -172,6 +172,7 @@ class FullyConnectedNet(object):
         self.num_layers = 1 + len(hidden_dims)
         self.dtype = dtype
         self.params = {}
+        self.bn_before_relu = bn_before_relu
 
         ############################################################################
         # TODO: Initialize the parameters of the network, storing all values in    #
@@ -271,15 +272,19 @@ class FullyConnectedNet(object):
             gamma = "gamma{}".format(i+1)
             beta = "beta{}".format(i+1)
 
-            out, cache["aff{}".format(i+1)] = affine_forward(x=layer_input,
-                w=self.params[weight],
-                b=self.params[bias])
             if self.use_batchnorm:
-                out, cache["bn{}".format(i+1)] = batchnorm_forward(x=out,
-                    gamma=self.params[gamma],
-                    beta=self.params[beta], bn_param=self.bn_params[i])
-            out, cache["relu{}".format(i+1)] = relu_forward(x=out)
-            #print("Relu {}\n".format(i+1),"Input:",cache["relu{}".format(i+1)].shape)            
+                if self.bn_before_relu:
+                    out, cache["aff_bn_relu{}".format(i+1)] = affine_bn_relu_forward(
+                        x=layer_input,w=self.params[weight],b=self.params[bias],
+                        gamma=self.params[gamma],beta=self.params[beta],bn_param=self.bn_params[i])
+                else:
+                    out, cache["aff_relu_bn{}".format(i+1)] = affine_relu_bn_forward(
+                        x=layer_input,w=self.params[weight],b=self.params[bias],
+                        gamma=self.params[gamma],beta=self.params[beta],bn_param=self.bn_params[i])
+                    
+            else:
+                out,  cache["aff_relu{}".format(i+1)] = affine_relu_forward(
+                    x=layer_input,w=self.params[weight],b=self.params[bias])                  
             if self.use_dropout:
                 out, cache["drop{}".format(
                     i+1)] = dropout_forward(x=out, dropout_param=self.dropout_param)
@@ -322,10 +327,15 @@ class FullyConnectedNet(object):
                 dx = dropout_backward(dout=dx,cache=cache["drop{}".format(i+1)])
             #print("Shape grad last layer:", dx.shape)
             #print("Shape relu {} cache:".format(i+1),cache["relu{}".format(i+1)].shape)
-            dx = relu_backward(dout=dx,cache=cache["relu{}".format(i+1)])
+            
             if self.use_batchnorm:
-                dx, grads["gamma{}".format(i+1)],grads["beta{}".format(i+1)] = batchnorm_backward(dout=dx,cache=cache["bn{}".format(i+1)])
-            dx, grads["W{}".format(i+1)], grads["b{}".format(i+1)] = affine_backward(dout=dx, cache=cache["aff{}".format(i+1)])
+                if self.bn_before_relu:
+                    dx, grads["W{}".format(i+1)], grads["b{}".format(i+1)],grads["gamma{}".format(i+1)],grads["beta{}".format(i+1)] = affine_bn_relu_backward(dx,cache["aff_bn_relu{}".format(i+1)])
+                else:
+                    dx, grads["W{}".format(i+1)], grads["b{}".format(i+1)],grads["gamma{}".format(i+1)],grads["beta{}".format(i+1)] = affine_relu_bn_backward(dx,cache["aff_relu_bn{}".format(i+1)])
+
+            else:
+                dx, grads["W{}".format(i+1)], grads["b{}".format(i+1)] = affine_relu_backward(dx,cache["aff_relu{}".format(i+1)])
             grads["W{}".format(i+1)] += self.reg*self.params["W{}".format(i+1)]
         #print("Grads:",grads.keys())
         ############################################################################

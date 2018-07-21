@@ -1,9 +1,5 @@
 assignment1/.ipynb_checkpoints/*
 assignment1/cs231n/datasets/cifar-10-batches-py
-assignment1/cs231n/datasets/get_datasets.sh
-assignment1/frameworkpython
-assignment1/start_ipython_osx.sh
-assignment1/setup_googlecloud.sh
 .vscode/
 assignment2/.ipynb_checkpoints/*
 assignment2/cs231n/datasets/cifar-10-batches-py

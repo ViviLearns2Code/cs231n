@@ -8,5 +8,5 @@ Content: k-Nearest Neighbours, SVM, Softmax, Simple Neural Network, Image Classi
 ## Assignment 2 [COMPLETE]
 Content: Fully Connected Network, Batch Normalization, Dropout, CNN, PyTorch
 
-## Assignment 3 [Not Started]
+## Assignment 3 [IN PROGRESS]
 Content: Vanilla RNN, LSTM, Visualization, Style Transfer, GAN

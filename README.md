@@ -1,6 +1,6 @@
 # CS231n Assignment Solution Repository
 
-I am currently doing the Stanford CS231n course online and this repository contains my solutions for the course assignments.
+This repository contains my solutions for the CS231n course assignments.
 
 ## Assignment 1 [COMPLETE]
 Content: k-Nearest Neighbours, SVM, Softmax, Simple Neural Network, Image Classification based on Features
@@ -8,5 +8,5 @@ Content: k-Nearest Neighbours, SVM, Softmax, Simple Neural Network, Image Classi
 ## Assignment 2 [COMPLETE]
 Content: Fully Connected Network, Batch Normalization, Dropout, CNN, PyTorch
 
-## Assignment 3 [IN PROGRESS]
+## Assignment 3 [COMPLETE]
 Content: Vanilla RNN, LSTM, Visualization, Style Transfer, GAN
